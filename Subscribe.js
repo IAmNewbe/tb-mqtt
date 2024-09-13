@@ -1,46 +1,51 @@
 const mqtt = require('mqtt');
 require('dotenv').config();
 
-// Replace these with your MQTT broker details
+// Replace with your ThingsBoard broker URL
 const brokerUrl = process.env.broker_URL;
-// Device Access Token
-const deviceToken = process.env.mqtt_username;
+const topic_publish = process.env.topic_publish;
 
-// Create an MQTT client instance
+// Device Access Token
+const deviceToken = process.env.mqtt_username; // Replace with your device access token
+
+// Connect to ThingsBoard MQTT broker
 const client = mqtt.connect(brokerUrl, {
-  username: deviceToken,
-  password: ''
+  username: deviceToken
 });
 
-const topic = process.env.topic_subscribe;
-
-// Handle connection events
 client.on('connect', () => {
-  console.log('Connected to MQTT broker');
+  console.log('Connected to ThingsBoard MQTT broker');
 
-  // Subscribe to a topic
-  client.subscribe(topic, (err) => {
+  // Subscribe to RPC (Remote Procedure Call) requests
+  client.subscribe('v1/devices/me/rpc/request/+', (err) => {
     if (!err) {
-      console.log(`Subscribed to ${topic}`);
-    } else {
-      console.error(`Error subscribing to ${topic}: ${err}`);
+      console.log('Subscribed to RPC requests');
     }
   });
 
 });
 
 client.on('message', (topic, message) => {
-  console.log(`Received message on topic ${topic}: ${message.toString()}`);
-  // Disconnect after receiving a message
-  // client.end();
+  console.log(`Received message from topic ${topic}: ${message.toString()}`);
+  
+  // If it's an RPC request, handle it
+  if (topic.startsWith('v1/devices/me/rpc/request/')) {
+    const requestId = topic.split('/').pop();
+    const rpcRequest = JSON.parse(message.toString());
+    
+    console.log('Received RPC request:', rpcRequest);
+    
+    // Example: Respond to RPC with the requestId
+    const responseTopic = `v1/devices/me/rpc/response/${requestId}`;
+    const response = {
+      status: "success",
+      data: "RPC handled"
+    };
+    client.publish(responseTopic, JSON.stringify(response));
+  }
 });
 
-// Handle disconnection events
-client.on('close', () => {
-  console.log('Disconnected from MQTT broker');
-});
-
-// Handle errors
+// Error handling
 client.on('error', (err) => {
-  console.error(`MQTT error: ${err}`);
+  console.error('Connection error:', err);
 });
